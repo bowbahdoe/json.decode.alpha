@@ -4,6 +4,7 @@ import dev.mccue.json.Json;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
 
 
 public sealed abstract class JsonDecodingException extends RuntimeException {
@@ -11,7 +12,9 @@ public sealed abstract class JsonDecodingException extends RuntimeException {
         private final String fieldName;
         private final JsonDecodingException error;
 
-        Field(String fieldName, JsonDecodingException error) {
+        public Field(String fieldName, JsonDecodingException error) {
+            Objects.requireNonNull(fieldName, "fieldName must not be null");
+            Objects.requireNonNull(error, "error must not be null");
             this.fieldName = fieldName;
             this.error = error;
         }
@@ -29,7 +32,8 @@ public sealed abstract class JsonDecodingException extends RuntimeException {
         private final int index;
         private final JsonDecodingException error;
 
-        Index(int index, JsonDecodingException error) {
+        public Index(int index, JsonDecodingException error) {
+            Objects.requireNonNull(error);
             this.index = index;
             this.error = error;
         }
@@ -46,8 +50,10 @@ public sealed abstract class JsonDecodingException extends RuntimeException {
     public static final class OneOf extends JsonDecodingException {
         private final List<JsonDecodingException> errors;
 
-        OneOf(List<JsonDecodingException> errors) {
-            this.errors = errors;
+        public OneOf(List<JsonDecodingException> errors) {
+            Objects.requireNonNull(errors, "errors must not be null");
+            errors.forEach(error -> Objects.requireNonNull(error, "every error must not be null"));
+            this.errors = List.copyOf(errors);
         }
 
         public List<JsonDecodingException> errors() {
@@ -59,7 +65,7 @@ public sealed abstract class JsonDecodingException extends RuntimeException {
         private final String reason;
         private final Json value;
 
-        Failure(String reason, Json value) {
+        public Failure(String reason, Json value) {
             this.reason = reason;
             this.value = value;
         }
