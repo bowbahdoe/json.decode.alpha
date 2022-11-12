@@ -41,6 +41,14 @@
         <url>http://github.com/bowbahdoe/json.decode.alpha/tree/main</url>
     </scm>
 
+    <dependencies>
+        <dependency>
+            <groupId>dev.mccue</groupId>
+            <artifactId>json</artifactId>
+            <version>0.0.6</version>
+        </dependency>
+    </dependencies>
+
     <build>
         <plugins>
             <plugin>
