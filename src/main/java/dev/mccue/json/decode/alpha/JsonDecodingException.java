@@ -4,78 +4,85 @@ import dev.mccue.json.Json;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Objects;
 
 
-public sealed abstract class JsonDecodingException extends RuntimeException {
-    public static final class Field extends JsonDecodingException {
-        private final String fieldName;
-        private final JsonDecodingException error;
+public sealed class JsonDecodingException extends RuntimeException {
+    private final Reason reason;
+    private final Path path;
+    private final Json value;
+    private final List<JsonDecodingException> otherIssues;
 
-        public Field(String fieldName, JsonDecodingException error) {
-            Objects.requireNonNull(fieldName, "fieldName must not be null");
-            Objects.requireNonNull(error, "error must not be null");
-            this.fieldName = fieldName;
-            this.error = error;
-        }
-
-        public String fieldName() {
-            return this.fieldName;
-        }
-
-        public JsonDecodingException error() {
-            return this.error;
-        }
+    public sealed interface Path {
+        record Base() implements Path {}
+        record Index(int i, Path next) implements Path {}
+        record Field(String s, Path next) implements Path {}
     }
 
-    public static final class Index extends JsonDecodingException {
-        private final int index;
-        private final JsonDecodingException error;
-
-        public Index(int index, JsonDecodingException error) {
-            Objects.requireNonNull(error);
-            this.index = index;
-            this.error = error;
-        }
-
-        public int getIndex() {
-            return this.index;
-        }
-
-        public JsonDecodingException error() {
-            return this.error;
-        }
+    public sealed interface Reason {
+        record Message(String m) implements Reason {}
+        record Throwable(java.lang.Throwable t) implements Reason {}
     }
 
-    public static final class OneOf extends JsonDecodingException {
-        private final List<JsonDecodingException> errors;
-
-        public OneOf(List<JsonDecodingException> errors) {
-            Objects.requireNonNull(errors, "errors must not be null");
-            errors.forEach(error -> Objects.requireNonNull(error, "every error must not be null"));
-            this.errors = List.copyOf(errors);
-        }
-
-        public List<JsonDecodingException> errors() {
-            return errors;
-        }
+    public JsonDecodingException(String reason, Json value) {
+        super(reason);
+        this.reason = new Reason.Message(reason);
+        this.value = value;
+        this.path = new Path.Base();
+        this.otherIssues = List.of();
     }
 
-    public static final class Failure extends JsonDecodingException {
-        private final String reason;
-        private final Json value;
+    public JsonDecodingException(Throwable reason, Json value) {
+        super(reason);
+        this.reason = new Reason.Throwable(reason);
+        this.value = value;
+        this.path = new Path.Base();
+        this.otherIssues = List.of();
+    }
 
-        public Failure(String reason, Json value) {
-            this.reason = reason;
-            this.value = value;
+    private JsonDecodingException(Reason reason, Json value, Path path) {
+        this.reason = reason;
+        this.value = value;
+        this.path = path;
+        this.otherIssues = List.of();
+    }
+
+    public static JsonDecodingException field(String fieldName, JsonDecodingException error) {
+        return new JsonDecodingException(
+                error.reason,
+                error.value,
+                new Path.Field(fieldName, error.path)
+        );
+    }
+
+    public static JsonDecodingException index(int index, JsonDecodingException error) {
+        return new JsonDecodingException(
+                error.reason,
+                error.value,
+                new Path.Index(index, error.path)
+        );
+    }
+
+    public Reason reason() {
+        return this.reason;
+    }
+
+    public Path path() {
+        return this.path;
+    }
+
+    public Json value() {
+        return this.value;
+    }
+    public static final class MultipleIssues extends JsonDecodingException  {
+        private final List<JsonDecodingException> otherIssues;
+        public MultipleIssues(String reason, Json value, List<? extends JsonDecodingException> otherIssues) {
+            super(reason, value);
+            this.otherIssues = List.copyOf(otherIssues);
         }
 
-        public String reason() {
-            return reason;
-        }
-
-        public Json value() {
-            return value;
+        public MultipleIssues(Throwable reason, Json value, List<? extends JsonDecodingException> otherIssues) {
+            super(reason, value);
+            this.otherIssues = List.copyOf(otherIssues);
         }
     }
 
@@ -105,28 +112,32 @@ public sealed abstract class JsonDecodingException extends RuntimeException {
 
             return getMessageHelp(err, context);
         }
+
         else if (error instanceof Index index) {
             var indexName = "[" + index.index + "]";
             context.add(indexName);
             return getMessageHelp(index.error, context);
         }
         else if (error instanceof OneOf oneOf) {
-            if (oneOf.errors.isEmpty()) {
-                return "Ran into oneOf with no possibilities" + (context.isEmpty() ? "!" : " at json" + String.join("", context));
-            }
-            else if (oneOf.errors.size() == 1) {
-                return getMessageHelp(oneOf.errors.get(0), context);
+            var errors = oneOf.errors();
+            if (errors.rest().isEmpty()) {
+                return getMessageHelp(errors.first(), context);
             }
             else {
                 var starter = (context.isEmpty() ? "oneOf" : "oneOf at json" + String.join("", context));
-                var introduction = starter + " failed in the following " + oneOf.errors.size() + " ways:";
+                var introduction = starter + " failed in the following " + 1 + errors.rest().size() + " ways:";
                 var msg = new StringBuilder(introduction + "\n\n");
-                for (int i = 0; i < oneOf.errors.size(); i++) {
+
+                var combinedErrors = new ArrayList<JsonDecodingException>();
+                combinedErrors.add(errors.first);
+                combinedErrors.addAll(errors.rest);
+
+                for (int i = 0; i < combinedErrors.size(); i++) {
                     msg.append("\n\n(");
                     msg.append(i + 1);
                     msg.append(") ");
-                    msg.append(indent(getMessage(oneOf.errors.get(i))));
-                    if (i != oneOf.errors.size() - 1) {
+                    msg.append(indent(getMessage(combinedErrors.get(i))));
+                    if (i != combinedErrors.size() - 1) {
                         msg.append("\n\n");
                     }
                 }
@@ -134,9 +145,7 @@ public sealed abstract class JsonDecodingException extends RuntimeException {
                 return msg.toString();
             }
         }
-        else if (error instanceof Failure failure) {
-            var msg = failure.reason;
-            var json = failure.value;
+        else {
 
             var introduction  = (
                     context.isEmpty()
@@ -144,10 +153,7 @@ public sealed abstract class JsonDecodingException extends RuntimeException {
                             :  "Problem with the value at json" + String.join("", context) +  ":\n\n    "
             );
 
-            return introduction + indent(Json.writeString(json, new Json.WriteOptions().withIndentation(4))) + "\n\n" + msg;
-        }
-        else {
-            throw new IllegalStateException();
+            return introduction + indent(Json.writeString(error.value, new Json.WriteOptions().withIndentation(4))) + "\n\n" + error.reason;
         }
 
     }

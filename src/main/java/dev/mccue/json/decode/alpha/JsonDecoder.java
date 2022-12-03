@@ -5,20 +5,20 @@ import dev.mccue.json.Json;
 import java.util.*;
 import java.util.function.Function;
 
-public interface Decoder<T> {
+public interface JsonDecoder<T> {
     T decode(Json json) throws JsonDecodingException;
 
-    default <R> Decoder<R> map(Function<? super T, ? extends R> f) {
+    default <R> JsonDecoder<R> map(Function<? super T, ? extends R> f) {
         return value -> f.apply(this.decode(value));
     }
 
-    static <T> Decoder<T> of(Decoder<? extends T> decoder) {
-        return decoder::decode;
+    static <T> JsonDecoder<T> of(JsonDecoder<? extends T> jsonDecoder) {
+        return jsonDecoder::decode;
     }
 
     static String string(Json json) throws JsonDecodingException {
         if (!(json instanceof Json.String jsonString)) {
-            throw new JsonDecodingException.Failure(
+            throw new JsonDecodingException(
                     "expected a string",
                     json
             );
@@ -30,7 +30,7 @@ public interface Decoder<T> {
 
     static boolean boolean_(Json json) throws JsonDecodingException {
         if (!(json instanceof Json.Boolean jsonBoolean)) {
-            throw new JsonDecodingException.Failure(
+            throw new JsonDecodingException(
                     "expected a boolean",
                     json
             );
@@ -42,13 +42,13 @@ public interface Decoder<T> {
 
     static int int_(Json json) throws JsonDecodingException {
         if (!(json instanceof Json.Number jsonNumber)) {
-            throw new JsonDecodingException.Failure(
+            throw new JsonDecodingException(
                     "expected a number",
                     json
             );
         }
         else if (!jsonNumber.isIntegral()) {
-            throw new JsonDecodingException.Failure(
+            throw new JsonDecodingException(
                     "expected a number with no decimal part",
                     json
             );
@@ -57,7 +57,7 @@ public interface Decoder<T> {
             try {
                 return jsonNumber.intValueExact();
             } catch (ArithmeticException e) {
-                throw new JsonDecodingException.Failure(
+                throw new JsonDecodingException(
                         "expected a number which could be converted to an int",
                         json
                 );
@@ -67,13 +67,13 @@ public interface Decoder<T> {
 
     static long long_(Json json) throws JsonDecodingException {
         if (!(json instanceof Json.Number jsonNumber)) {
-            throw new JsonDecodingException.Failure(
+            throw new JsonDecodingException(
                     "expected a number",
                     json
             );
         }
         else if (!jsonNumber.isIntegral()) {
-            throw new JsonDecodingException.Failure(
+            throw new JsonDecodingException(
                     "expected a number with no decimal part",
                     json
             );
@@ -82,7 +82,7 @@ public interface Decoder<T> {
             try {
                 return jsonNumber.longValueExact();
             } catch (ArithmeticException e) {
-                throw new JsonDecodingException.Failure(
+                throw new JsonDecodingException(
                         "expected a number which could be converted to a long",
                         json
                 );
@@ -92,7 +92,7 @@ public interface Decoder<T> {
 
     static float float_(Json json) throws JsonDecodingException {
         if (!(json instanceof Json.Number jsonNumber)) {
-            throw new JsonDecodingException.Failure(
+            throw new JsonDecodingException(
                     "expected a number",
                     json
             );
@@ -104,7 +104,7 @@ public interface Decoder<T> {
 
     static double double_(Json json) throws JsonDecodingException {
         if (!(json instanceof Json.Number jsonNumber)) {
-            throw new JsonDecodingException.Failure(
+            throw new JsonDecodingException(
                     "expected a number",
                     json
             );
@@ -116,7 +116,7 @@ public interface Decoder<T> {
 
     static <T> T null_(Json json) throws JsonDecodingException {
         if (!(json instanceof Json.Null)) {
-            throw new JsonDecodingException.Failure(
+            throw new JsonDecodingException(
                     "expected null",
                     json
             );
@@ -126,9 +126,9 @@ public interface Decoder<T> {
         }
     }
 
-    static <T> List<T> array(Json json, Decoder<? extends T> itemDecoder) throws JsonDecodingException {
+    static <T> List<T> array(Json json, JsonDecoder<? extends T> itemJsonDecoder) throws JsonDecodingException {
         if (!(json instanceof Json.Array jsonArray)) {
-            throw new JsonDecodingException.Failure(
+            throw new JsonDecodingException(
                     "expected an array",
                     json
             );
@@ -138,18 +138,18 @@ public interface Decoder<T> {
             for (int i = 0; i < jsonArray.size(); i++) {
                 var jsonItem = jsonArray.get(i);
                 try {
-                    items.add(itemDecoder.decode(jsonItem));
+                    items.add(itemJsonDecoder.decode(jsonItem));
                 } catch (JsonDecodingException e) {
-                    throw new JsonDecodingException.Index(i, e);
+                    throw JsonDecodingException.index(i, e);
                 }
             }
             return List.copyOf(items);
         }
     }
 
-    static <T> Map<String, T> object(Json json, Decoder<? extends T> valueDecoder) throws JsonDecodingException {
+    static <T> Map<String, T> object(Json json, JsonDecoder<? extends T> valueJsonDecoder) throws JsonDecodingException {
         if (!(json instanceof Json.Object jsonObject)) {
-            throw new JsonDecodingException.Failure(
+            throw new JsonDecodingException(
                     "expected an object",
                     json
             );
@@ -158,18 +158,18 @@ public interface Decoder<T> {
             var m = new HashMap<String, T>();
             jsonObject.forEach((key, value) -> {
                 try {
-                    m.put(key, valueDecoder.decode(value));
+                    m.put(key, valueJsonDecoder.decode(value));
                 } catch (JsonDecodingException e) {
-                    throw new JsonDecodingException.Field(key, e);
+                    throw JsonDecodingException.field(key, e);
                 }
             });
             return Map.copyOf(m);
         }
     }
 
-    static <T> T field(Json json, String fieldName, Decoder<? extends T> valueDecoder) throws JsonDecodingException {
+    static <T> T field(Json json, String fieldName, JsonDecoder<? extends T> valueJsonDecoder) throws JsonDecodingException {
         if (!(json instanceof Json.Object jsonObject)) {
-            throw new JsonDecodingException.Failure(
+            throw new JsonDecodingException(
                     "expected an object",
                     json
             );
@@ -177,9 +177,9 @@ public interface Decoder<T> {
         else {
             var value = jsonObject.get(fieldName);
             if (value == null) {
-                throw new JsonDecodingException.Field(
+                throw JsonDecodingException.field(
                         fieldName,
-                        new JsonDecodingException.Failure(
+                        new JsonDecodingException(
                                 "no value for field",
                                 json
                         )
@@ -187,9 +187,9 @@ public interface Decoder<T> {
             }
             else {
                 try {
-                    return valueDecoder.decode(value);
+                    return valueJsonDecoder.decode(value);
                 } catch (JsonDecodingException e) {
-                    throw new JsonDecodingException.Field(
+                    throw JsonDecodingException.field(
                             fieldName,
                             e
                     );
@@ -198,9 +198,9 @@ public interface Decoder<T> {
         }
     }
 
-    static <T> T optionalField(Json json, String fieldName, Decoder<? extends T> valueDecoder, T defaultValue) throws JsonDecodingException {
+    static <T> T optionalField(Json json, String fieldName, JsonDecoder<? extends T> valueJsonDecoder, T defaultValue) throws JsonDecodingException {
         if (!(json instanceof Json.Object jsonObject)) {
-            throw new JsonDecodingException.Failure(
+            throw new JsonDecodingException(
                     "expected an object",
                     json
             );
@@ -212,9 +212,9 @@ public interface Decoder<T> {
             }
             else {
                 try {
-                    return valueDecoder.decode(value);
+                    return valueJsonDecoder.decode(value);
                 } catch (JsonDecodingException e) {
-                    throw new JsonDecodingException.Field(
+                    throw JsonDecodingException.field(
                             fieldName,
                             e
                     );
@@ -223,16 +223,16 @@ public interface Decoder<T> {
         }
     }
 
-    static <T> Optional<T> optionalField(Json json, String fieldName, Decoder<? extends T> valueDecoder) throws JsonDecodingException {
-        return optionalField(json, fieldName, valueDecoder.map(Optional::of), Optional.empty());
+    static <T> Optional<T> optionalField(Json json, String fieldName, JsonDecoder<? extends T> valueJsonDecoder) throws JsonDecodingException {
+        return optionalField(json, fieldName, valueJsonDecoder.map(Optional::of), Optional.empty());
     }
 
-    static <T> Optional<T> optionalNullableField(Json json, String fieldName, Decoder<? extends T> valueDecoder) throws JsonDecodingException {
-        return optionalField(json, fieldName, nullable(valueDecoder), Optional.empty());
+    static <T> Optional<T> optionalNullableField(Json json, String fieldName, JsonDecoder<? extends T> valueJsonDecoder) throws JsonDecodingException {
+        return optionalField(json, fieldName, nullable(valueJsonDecoder), Optional.empty());
     }
 
-    static <T> T optionalNullableField(Json json, String fieldName, Decoder<? extends T> valueDecoder, T defaultValue) throws JsonDecodingException {
-        var decoder = nullable(valueDecoder)
+    static <T> T optionalNullableField(Json json, String fieldName, JsonDecoder<? extends T> valueJsonDecoder, T defaultValue) throws JsonDecodingException {
+        var decoder = nullable(valueJsonDecoder)
                 .map(opt -> opt.orElse(null))
                 .map(value -> value == null ? defaultValue : value);
 
@@ -247,11 +247,11 @@ public interface Decoder<T> {
     static <T> T optionalNullableField(
             Json json,
             String fieldName,
-            Decoder<? extends T> valueDecoder,
+            JsonDecoder<? extends T> valueJsonDecoder,
             T whenFieldMissing,
             T whenFieldNull
     ) throws JsonDecodingException {
-        var decoder = nullable(valueDecoder)
+        var decoder = nullable(valueJsonDecoder)
                 .map(opt -> opt.orElse(null))
                 .map(value -> value == null ? whenFieldNull : value);
 
@@ -263,18 +263,18 @@ public interface Decoder<T> {
         );
     }
 
-    static <T> T index(Json json, int index, Decoder<? extends T> valueDecoder) throws JsonDecodingException {
+    static <T> T index(Json json, int index, JsonDecoder<? extends T> valueJsonDecoder) throws JsonDecodingException {
         if (!(json instanceof Json.Array jsonArray)) {
-            throw new JsonDecodingException.Failure(
+            throw new JsonDecodingException(
                     "expected an array",
                     json
             );
         }
         else {
             if (index >= jsonArray.size()) {
-                throw new JsonDecodingException.Index(
+                throw JsonDecodingException.index(
                         index,
-                        new JsonDecodingException.Failure(
+                        new JsonDecodingException(
                                 "expected array index to be in bounds",
                                 json
                         )
@@ -282,57 +282,61 @@ public interface Decoder<T> {
             }
             else {
                 try {
-                    return valueDecoder.decode(jsonArray.get(index));
+                    return valueJsonDecoder.decode(jsonArray.get(index));
                 } catch (JsonDecodingException e) {
-                    throw new JsonDecodingException.Index(
+                    throw JsonDecodingException.index(
                             index,
                             e
                     );
                 }
             }
-
         }
     }
 
-    static <T> Decoder<Optional<T>> nullable(Decoder<? extends T> decoder) {
-        return json -> Decoder.oneOf(
+    static <T> JsonDecoder<Optional<T>> nullable(JsonDecoder<? extends T> jsonDecoder) {
+        return json -> JsonDecoder.oneOf(
                 json,
-                decoder.map(Optional::of),
-                Decoder.of(Decoder::null_).map(__ -> Optional.empty())
+                jsonDecoder.map(Optional::of),
+                JsonDecoder.of(JsonDecoder::null_).map(__ -> Optional.empty())
         );
     }
 
-    static <T> Decoder<T> nullable(Decoder<? extends T> decoder, T defaultValue) {
-        return json -> Decoder.oneOf(
+    static <T> JsonDecoder<T> nullable(JsonDecoder<? extends T> jsonDecoder, T defaultValue) {
+        return json -> JsonDecoder.oneOf(
                 json,
-                decoder,
-                Decoder.of(__ -> defaultValue)
+                jsonDecoder,
+                JsonDecoder.of(__ -> defaultValue)
         );
     }
-    static <T> T oneOf(Json json, Decoder<? extends T> decoderA, Decoder<? extends T> decoderB) throws JsonDecodingException {
+    static <T> T oneOf(Json json, JsonDecoder<? extends T> jsonDecoderA, JsonDecoder<? extends T> jsonDecoderB) throws JsonDecodingException {
         try {
-            return decoderA.decode(json);
+            return jsonDecoderA.decode(json);
         } catch (JsonDecodingException e1) {
             try {
-                return decoderB.decode(json);
+                return jsonDecoderB.decode(json);
             }
             catch (JsonDecodingException e2) {
                 var errors = new ArrayList<JsonDecodingException>();
                 if (e1 instanceof JsonDecodingException.OneOf oneOf) {
-                    errors.addAll(oneOf.errors());
+                    errors.add(oneOf.errors().first());
+                    errors.addAll(oneOf.errors().rest());
                 }
                 else {
                     errors.add(e1);
                 }
 
                 if (e2 instanceof JsonDecodingException.OneOf oneOf) {
-                    errors.addAll(oneOf.errors());
+                    errors.add(oneOf.errors().first());
+                    errors.addAll(oneOf.errors().rest());
                 }
                 else {
                     errors.add(e2);
                 }
 
-                throw new JsonDecodingException.OneOf(List.copyOf(errors));
+                throw new JsonDecodingException.OneOf(
+                        errors.get(0),
+                        errors.subList(1, errors.size())
+                );
             }
         }
     }
