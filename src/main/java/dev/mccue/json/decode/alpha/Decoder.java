@@ -337,6 +337,7 @@ public interface Decoder<T> {
         }
     }
 
+    @SafeVarargs
     static <T> T oneOf(Json json, Decoder<? extends T> decoderA, Decoder<? extends T>... decoders) throws JsonDecodingException {
         try {
             return decoderA.decode(json);
