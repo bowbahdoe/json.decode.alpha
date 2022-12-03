@@ -336,4 +336,32 @@ public interface Decoder<T> {
             }
         }
     }
+
+    static <T> T oneOf(Json json, Decoder<? extends T> decoderA, Decoder<? extends T>... decoders) throws JsonDecodingException {
+        try {
+            return decoderA.decode(json);
+        } catch (JsonDecodingException e1) {
+            var errors = new ArrayList<JsonDecodingException>();
+            if (e1 instanceof JsonDecodingException.OneOf oneOf) {
+                errors.addAll(oneOf.errors());
+            }
+            else {
+                errors.add(e1);
+            }
+
+            for (var decoder : decoders) {
+                try {
+                    return decoder.decode(json);
+                } catch (JsonDecodingException e2) {
+                    if (e2 instanceof JsonDecodingException.OneOf oneOf) {
+                        errors.addAll(oneOf.errors());
+                    } else {
+                        errors.add(e2);
+                    }
+                }
+            }
+
+            throw new JsonDecodingException.OneOf(List.copyOf(errors));
+        }
+    }
 }
