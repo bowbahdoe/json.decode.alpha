@@ -18,7 +18,7 @@ public interface Decoder<T> {
 
     static String string(Json json) throws JsonDecodingException {
         if (!(json instanceof Json.String jsonString)) {
-            throw new JsonDecodingException.Failure(
+            throw JsonDecodingException.of(
                     "expected a string",
                     json
             );
@@ -30,7 +30,7 @@ public interface Decoder<T> {
 
     static boolean boolean_(Json json) throws JsonDecodingException {
         if (!(json instanceof Json.Boolean jsonBoolean)) {
-            throw new JsonDecodingException.Failure(
+            throw JsonDecodingException.of(
                     "expected a boolean",
                     json
             );
@@ -42,13 +42,13 @@ public interface Decoder<T> {
 
     static int int_(Json json) throws JsonDecodingException {
         if (!(json instanceof Json.Number jsonNumber)) {
-            throw new JsonDecodingException.Failure(
+            throw JsonDecodingException.of(
                     "expected a number",
                     json
             );
         }
         else if (!jsonNumber.isIntegral()) {
-            throw new JsonDecodingException.Failure(
+            throw JsonDecodingException.of(
                     "expected a number with no decimal part",
                     json
             );
@@ -57,7 +57,7 @@ public interface Decoder<T> {
             try {
                 return jsonNumber.intValueExact();
             } catch (ArithmeticException e) {
-                throw new JsonDecodingException.Failure(
+                throw JsonDecodingException.of(
                         "expected a number which could be converted to an int",
                         json
                 );
@@ -67,13 +67,13 @@ public interface Decoder<T> {
 
     static long long_(Json json) throws JsonDecodingException {
         if (!(json instanceof Json.Number jsonNumber)) {
-            throw new JsonDecodingException.Failure(
+            throw JsonDecodingException.of(
                     "expected a number",
                     json
             );
         }
         else if (!jsonNumber.isIntegral()) {
-            throw new JsonDecodingException.Failure(
+            throw JsonDecodingException.of(
                     "expected a number with no decimal part",
                     json
             );
@@ -82,7 +82,7 @@ public interface Decoder<T> {
             try {
                 return jsonNumber.longValueExact();
             } catch (ArithmeticException e) {
-                throw new JsonDecodingException.Failure(
+                throw JsonDecodingException.of(
                         "expected a number which could be converted to a long",
                         json
                 );
@@ -92,7 +92,7 @@ public interface Decoder<T> {
 
     static float float_(Json json) throws JsonDecodingException {
         if (!(json instanceof Json.Number jsonNumber)) {
-            throw new JsonDecodingException.Failure(
+            throw JsonDecodingException.of(
                     "expected a number",
                     json
             );
@@ -104,7 +104,7 @@ public interface Decoder<T> {
 
     static double double_(Json json) throws JsonDecodingException {
         if (!(json instanceof Json.Number jsonNumber)) {
-            throw new JsonDecodingException.Failure(
+            throw JsonDecodingException.of(
                     "expected a number",
                     json
             );
@@ -116,7 +116,7 @@ public interface Decoder<T> {
 
     static <T> T null_(Json json) throws JsonDecodingException {
         if (!(json instanceof Json.Null)) {
-            throw new JsonDecodingException.Failure(
+            throw JsonDecodingException.of(
                     "expected null",
                     json
             );
@@ -128,7 +128,7 @@ public interface Decoder<T> {
 
     static Json.Array array(Json json) throws JsonDecodingException {
         if (!(json instanceof Json.Array jsonArray)) {
-            throw new JsonDecodingException.Failure(
+            throw JsonDecodingException.of(
                     "expected an array",
                     json
             );
@@ -140,7 +140,7 @@ public interface Decoder<T> {
 
     static <T> List<T> array(Json json, Decoder<? extends T> itemDecoder) throws JsonDecodingException {
         if (!(json instanceof Json.Array jsonArray)) {
-            throw new JsonDecodingException.Failure(
+            throw JsonDecodingException.of(
                     "expected an array",
                     json
             );
@@ -152,7 +152,9 @@ public interface Decoder<T> {
                 try {
                     items.add(itemDecoder.decode(jsonItem));
                 } catch (JsonDecodingException e) {
-                    throw new JsonDecodingException.Index(i, e);
+                    throw JsonDecodingException.atIndex(i, e);
+                }  catch (Exception e) {
+                    throw JsonDecodingException.atIndex(i, JsonDecodingException.of(e, jsonItem));
                 }
             }
             return List.copyOf(items);
@@ -161,7 +163,7 @@ public interface Decoder<T> {
 
     static Json.Object object(Json json) throws JsonDecodingException {
         if (!(json instanceof Json.Object jsonObject)) {
-            throw new JsonDecodingException.Failure(
+            throw JsonDecodingException.of(
                     "expected an object",
                     json
             );
@@ -178,7 +180,9 @@ public interface Decoder<T> {
             try {
                 m.put(key, valueDecoder.decode(value));
             } catch (JsonDecodingException e) {
-                throw new JsonDecodingException.Field(key, e);
+                throw JsonDecodingException.atField(key, e);
+            } catch (Exception e) {
+                throw JsonDecodingException.atField(key, JsonDecodingException.of(e, value));
             }
         });
         return Collections.unmodifiableMap(m);
@@ -192,9 +196,9 @@ public interface Decoder<T> {
         var jsonObject = object(json);
         var value = jsonObject.get(fieldName);
         if (value == null) {
-            throw new JsonDecodingException.Field(
+            throw JsonDecodingException.atField(
                     fieldName,
-                    new JsonDecodingException.Failure(
+                    JsonDecodingException.of(
                             "no value for field",
                             json
                     )
@@ -204,10 +208,12 @@ public interface Decoder<T> {
             try {
                 return valueDecoder.decode(value);
             } catch (JsonDecodingException e) {
-                throw new JsonDecodingException.Field(
+                throw JsonDecodingException.atField(
                         fieldName,
                         e
                 );
+            }  catch (Exception e) {
+                throw JsonDecodingException.atField(fieldName, JsonDecodingException.of(e, value));
             }
         }
     }
@@ -226,10 +232,12 @@ public interface Decoder<T> {
             try {
                 return valueDecoder.decode(value);
             } catch (JsonDecodingException e) {
-                throw new JsonDecodingException.Field(
+                throw JsonDecodingException.atField(
                         fieldName,
                         e
                 );
+            } catch (Exception e) {
+                throw JsonDecodingException.atField(fieldName, JsonDecodingException.of(e, value));
             }
         }
     }
@@ -308,9 +316,9 @@ public interface Decoder<T> {
     static <T> T index(Json json, int index, Decoder<? extends T> valueDecoder) throws JsonDecodingException {
         var jsonArray = array(json);
         if (index >= jsonArray.size()) {
-            throw new JsonDecodingException.Index(
+            throw JsonDecodingException.atIndex(
                     index,
-                    new JsonDecodingException.Failure(
+                    JsonDecodingException.of(
                             "expected array index to be in bounds",
                             json
                     )
@@ -320,10 +328,12 @@ public interface Decoder<T> {
             try {
                 return valueDecoder.decode(jsonArray.get(index));
             } catch (JsonDecodingException e) {
-                throw new JsonDecodingException.Index(
+                throw JsonDecodingException.atIndex(
                         index,
                         e
                 );
+            } catch (Exception e) {
+                throw JsonDecodingException.atIndex(index, JsonDecodingException.of(e, jsonArray.get(index)));
             }
         }
     }
@@ -367,7 +377,7 @@ public interface Decoder<T> {
                     errors.add(e2);
                 }
 
-                throw new JsonDecodingException.OneOf(Collections.unmodifiableList(errors));
+                throw JsonDecodingException.multiple(Collections.unmodifiableList(errors));
             }
         }
     }
@@ -397,7 +407,7 @@ public interface Decoder<T> {
                 }
             }
 
-            throw new JsonDecodingException.OneOf(Collections.unmodifiableList(errors));
+            throw JsonDecodingException.multiple(Collections.unmodifiableList(errors));
         }
     }
 }
