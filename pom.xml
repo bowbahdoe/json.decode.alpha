@@ -6,7 +6,7 @@
 
     <groupId>dev.mccue</groupId>
     <artifactId>json.decode.alpha</artifactId>
-    <version>0.0.4</version>
+    <version>0.0.5</version>
     <packaging>jar</packaging>
 
     <properties>
@@ -17,7 +17,7 @@
 
     <name>json</name>
     <description>Utilities for decoding JSON into user defined classes.</description>
-    <url>https://github.com/bowbahdoe/json</url>
+    <url>https://github.com/bowbahdoe/json.decode.alpha</url>
 
     <developers>
         <developer>

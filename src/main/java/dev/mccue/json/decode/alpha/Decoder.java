@@ -126,6 +126,18 @@ public interface Decoder<T> {
         }
     }
 
+    static Json.Array array(Json json) throws JsonDecodingException {
+        if (!(json instanceof Json.Array jsonArray)) {
+            throw new JsonDecodingException.Failure(
+                    "expected an array",
+                    json
+            );
+        }
+        else {
+            return jsonArray;
+        }
+    }
+
     static <T> List<T> array(Json json, Decoder<? extends T> itemDecoder) throws JsonDecodingException {
         if (!(json instanceof Json.Array jsonArray)) {
             throw new JsonDecodingException.Failure(
@@ -147,7 +159,7 @@ public interface Decoder<T> {
         }
     }
 
-    static <T> Map<String, T> object(Json json, Decoder<? extends T> valueDecoder) throws JsonDecodingException {
+    static Json.Object object(Json json) throws JsonDecodingException {
         if (!(json instanceof Json.Object jsonObject)) {
             throw new JsonDecodingException.Failure(
                     "expected an object",
@@ -155,80 +167,91 @@ public interface Decoder<T> {
             );
         }
         else {
-            var m = new HashMap<String, T>();
-            jsonObject.forEach((key, value) -> {
-                try {
-                    m.put(key, valueDecoder.decode(value));
-                } catch (JsonDecodingException e) {
-                    throw new JsonDecodingException.Field(key, e);
-                }
-            });
-            return Map.copyOf(m);
+            return jsonObject;
         }
+    }
+
+    static <T> Map<String, T> object(Json json, Decoder<? extends T> valueDecoder) throws JsonDecodingException {
+        var jsonObject = object(json);
+        var m = new HashMap<String, T>(jsonObject.size());
+        jsonObject.forEach((key, value) -> {
+            try {
+                m.put(key, valueDecoder.decode(value));
+            } catch (JsonDecodingException e) {
+                throw new JsonDecodingException.Field(key, e);
+            }
+        });
+        return Collections.unmodifiableMap(m);
+    }
+
+    static <T> Decoder<T> field(String fieldName, Decoder<? extends T> valueDecoder) throws JsonDecodingException {
+        return json -> field(json, fieldName, valueDecoder);
     }
 
     static <T> T field(Json json, String fieldName, Decoder<? extends T> valueDecoder) throws JsonDecodingException {
-        if (!(json instanceof Json.Object jsonObject)) {
-            throw new JsonDecodingException.Failure(
-                    "expected an object",
-                    json
+        var jsonObject = object(json);
+        var value = jsonObject.get(fieldName);
+        if (value == null) {
+            throw new JsonDecodingException.Field(
+                    fieldName,
+                    new JsonDecodingException.Failure(
+                            "no value for field",
+                            json
+                    )
             );
         }
         else {
-            var value = jsonObject.get(fieldName);
-            if (value == null) {
+            try {
+                return valueDecoder.decode(value);
+            } catch (JsonDecodingException e) {
                 throw new JsonDecodingException.Field(
                         fieldName,
-                        new JsonDecodingException.Failure(
-                                "no value for field",
-                                json
-                        )
+                        e
                 );
-            }
-            else {
-                try {
-                    return valueDecoder.decode(value);
-                } catch (JsonDecodingException e) {
-                    throw new JsonDecodingException.Field(
-                            fieldName,
-                            e
-                    );
-                }
             }
         }
     }
 
+    static <T> Decoder<T> optionalField(String fieldName, Decoder<? extends T> valueDecoder, T defaultValue) throws JsonDecodingException {
+        return json -> optionalField(json, fieldName, valueDecoder, defaultValue);
+    }
+
     static <T> T optionalField(Json json, String fieldName, Decoder<? extends T> valueDecoder, T defaultValue) throws JsonDecodingException {
-        if (!(json instanceof Json.Object jsonObject)) {
-            throw new JsonDecodingException.Failure(
-                    "expected an object",
-                    json
-            );
+        var jsonObject = object(json);
+        var value = jsonObject.get(fieldName);
+        if (value == null) {
+            return defaultValue;
         }
         else {
-            var value = jsonObject.get(fieldName);
-            if (value == null) {
-                return defaultValue;
-            }
-            else {
-                try {
-                    return valueDecoder.decode(value);
-                } catch (JsonDecodingException e) {
-                    throw new JsonDecodingException.Field(
-                            fieldName,
-                            e
-                    );
-                }
+            try {
+                return valueDecoder.decode(value);
+            } catch (JsonDecodingException e) {
+                throw new JsonDecodingException.Field(
+                        fieldName,
+                        e
+                );
             }
         }
+    }
+
+    static <T> Decoder<Optional<T>> optionalField(String fieldName, Decoder<? extends T> valueDecoder) throws JsonDecodingException {
+        return json -> optionalField(json, fieldName, valueDecoder);
     }
 
     static <T> Optional<T> optionalField(Json json, String fieldName, Decoder<? extends T> valueDecoder) throws JsonDecodingException {
         return optionalField(json, fieldName, valueDecoder.map(Optional::of), Optional.empty());
     }
 
+    static <T> Decoder<Optional<T>> optionalNullableField(String fieldName, Decoder<? extends T> valueDecoder) throws JsonDecodingException {
+        return json -> optionalNullableField(json, fieldName, valueDecoder);
+    }
+
     static <T> Optional<T> optionalNullableField(Json json, String fieldName, Decoder<? extends T> valueDecoder) throws JsonDecodingException {
         return optionalField(json, fieldName, nullable(valueDecoder), Optional.empty());
+    }
+
+    static <T> Decoder<T> optionalNullableField(String fieldName, Decoder<? extends T> valueDecoder, T defaultValue) throws JsonDecodingException {
+        return json -> optionalNullableField(json, fieldName, valueDecoder, defaultValue);
     }
 
     static <T> T optionalNullableField(Json json, String fieldName, Decoder<? extends T> valueDecoder, T defaultValue) throws JsonDecodingException {
@@ -241,6 +264,21 @@ public interface Decoder<T> {
                 fieldName,
                 decoder,
                 defaultValue
+        );
+    }
+
+    static <T> Decoder<T> optionalNullableField(
+            String fieldName,
+            Decoder<? extends T> valueDecoder,
+            T whenFieldMissing,
+            T whenFieldNull
+    ) throws JsonDecodingException {
+        return json -> optionalNullableField(
+                json,
+                fieldName,
+                valueDecoder,
+                whenFieldMissing,
+                whenFieldNull
         );
     }
 
@@ -263,34 +301,30 @@ public interface Decoder<T> {
         );
     }
 
+    static <T> Decoder<T> index(int index, Decoder<? extends T> valueDecoder) throws JsonDecodingException {
+        return json -> index(json, index, valueDecoder);
+    }
+
     static <T> T index(Json json, int index, Decoder<? extends T> valueDecoder) throws JsonDecodingException {
-        if (!(json instanceof Json.Array jsonArray)) {
-            throw new JsonDecodingException.Failure(
-                    "expected an array",
-                    json
+        var jsonArray = array(json);
+        if (index >= jsonArray.size()) {
+            throw new JsonDecodingException.Index(
+                    index,
+                    new JsonDecodingException.Failure(
+                            "expected array index to be in bounds",
+                            json
+                    )
             );
         }
         else {
-            if (index >= jsonArray.size()) {
+            try {
+                return valueDecoder.decode(jsonArray.get(index));
+            } catch (JsonDecodingException e) {
                 throw new JsonDecodingException.Index(
                         index,
-                        new JsonDecodingException.Failure(
-                                "expected array index to be in bounds",
-                                json
-                        )
+                        e
                 );
             }
-            else {
-                try {
-                    return valueDecoder.decode(jsonArray.get(index));
-                } catch (JsonDecodingException e) {
-                    throw new JsonDecodingException.Index(
-                            index,
-                            e
-                    );
-                }
-            }
-
         }
     }
 
@@ -306,9 +340,10 @@ public interface Decoder<T> {
         return json -> Decoder.oneOf(
                 json,
                 decoder,
-                Decoder.of(__ -> defaultValue)
+                __ -> defaultValue
         );
     }
+
     static <T> T oneOf(Json json, Decoder<? extends T> decoderA, Decoder<? extends T> decoderB) throws JsonDecodingException {
         try {
             return decoderA.decode(json);
@@ -332,7 +367,7 @@ public interface Decoder<T> {
                     errors.add(e2);
                 }
 
-                throw new JsonDecodingException.OneOf(List.copyOf(errors));
+                throw new JsonDecodingException.OneOf(Collections.unmodifiableList(errors));
             }
         }
     }
@@ -362,7 +397,7 @@ public interface Decoder<T> {
                 }
             }
 
-            throw new JsonDecodingException.OneOf(List.copyOf(errors));
+            throw new JsonDecodingException.OneOf(Collections.unmodifiableList(errors));
         }
     }
 }
