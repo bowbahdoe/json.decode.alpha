@@ -354,6 +354,10 @@ public interface Decoder<T> {
         );
     }
 
+    static <T> Decoder<T> oneOf(Decoder<? extends T> decoderA, Decoder<? extends T> decoderB) throws JsonDecodingException {
+        return json -> oneOf(json, decoderA, decoderB);
+    }
+
     static <T> T oneOf(Json json, Decoder<? extends T> decoderA, Decoder<? extends T> decoderB) throws JsonDecodingException {
         try {
             return decoderA.decode(json);
@@ -380,6 +384,12 @@ public interface Decoder<T> {
                 throw JsonDecodingException.multiple(Collections.unmodifiableList(errors));
             }
         }
+    }
+
+
+    @SafeVarargs
+    static <T> Decoder<T> oneOf(Decoder<? extends T> decoderA, Decoder<? extends T>... decoders) throws JsonDecodingException {
+        return json -> oneOf(json, decoderA, decoders);
     }
 
     @SafeVarargs

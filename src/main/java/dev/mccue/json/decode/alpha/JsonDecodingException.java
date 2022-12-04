@@ -41,54 +41,6 @@ public sealed abstract class JsonDecodingException extends RuntimeException {
         return new Failure(cause, value);
     }
 
-    public sealed interface PathElement {
-        record Field(String fieldName) implements PathElement {
-            public Field {
-                Objects.requireNonNull(fieldName, "fieldName must not be null");
-            }
-        }
-        record Index(int index) implements PathElement {
-
-        }
-
-        record Branch(List<List<PathElement>> paths) implements PathElement {
-            public Branch {
-                Objects.requireNonNull(paths, "paths must not be null");
-                paths.forEach(path -> {
-                    Objects.requireNonNull(path, "each path must not be null");
-                    path.forEach(pathElement ->
-                            Objects.requireNonNull(pathElement, "each path element must not be null")
-                    );
-                });
-            }
-        }
-    }
-
-    public List<PathElement> path() {
-        var path = new ArrayList<PathElement>();
-        JsonDecodingException top = this;
-        while (!(top instanceof Failure)) {
-            if (top instanceof Field field) {
-                path.add(new PathElement.Field(field.fieldName));
-                top = field.error;
-            }
-            else if (top instanceof Index index) {
-                path.add(new PathElement.Index(index.index));
-                top = index.error;
-            }
-            else if (top instanceof OneOf oneOf) {
-                var branches = new ArrayList<List<PathElement>>(oneOf.errors.size());
-                for (var error : oneOf.errors) {
-                    branches.add(error.path());
-                }
-                path.add(new PathElement.Branch(branches));
-                break;
-            }
-        }
-
-        return Collections.unmodifiableList(path);
-    }
-
     public static final class Field extends JsonDecodingException {
         private final String fieldName;
         private final JsonDecodingException error;
@@ -158,7 +110,7 @@ public sealed abstract class JsonDecodingException extends RuntimeException {
         }
     }
 
-    private static final class Failure extends JsonDecodingException {
+    public static final class Failure extends JsonDecodingException {
         private final Json value;
 
         private Failure(String reason, Json value) {
