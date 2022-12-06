@@ -1,3 +1,3 @@
-module dev.mccue.json.serde {
+module dev.mccue.json.decode.alpha {
     requires transitive dev.mccue.json;
 }

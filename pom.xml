@@ -6,7 +6,7 @@
 
     <groupId>dev.mccue</groupId>
     <artifactId>json.decode.alpha</artifactId>
-    <version>0.0.7</version>
+    <version>0.0.8</version>
     <packaging>jar</packaging>
 
     <properties>
@@ -15,7 +15,7 @@
         <maven.compiler.target>17</maven.compiler.target>
     </properties>
 
-    <name>json</name>
+    <name>json.decode.alpha</name>
     <description>Utilities for decoding JSON into user defined classes.</description>
     <url>https://github.com/bowbahdoe/json.decode.alpha</url>
 
